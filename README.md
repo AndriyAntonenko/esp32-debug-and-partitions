@@ -44,6 +44,15 @@ Two settings matter for this task:
 
 ## 2. Crash scenarios
 
+Each scenario lives in its own module; [`src/main.cpp`](src/main.cpp) only selects and
+calls one of them:
+
+```
+src/main.cpp            # scenario selection, setup() / loop()
+src/nullptr.cpp/.h      # nullptr_issue::triggerNullPointerIssue()
+src/zero_division.cpp/.h# zero_division::triggerZeroDivisionIssue()
+```
+
 The scenario is selected at compile time with the `CRASH_SCENARIO` macro in
 [`src/main.cpp`](src/main.cpp):
 
@@ -95,20 +104,31 @@ pio run -t upload -t monitor
 
 ### 4.1 Code
 
+[`src/nullptr.cpp`](src/nullptr.cpp) — the three inner levels live in an anonymous
+namespace, only the entry point is exported through `nullptr_issue`:
+
 ```cpp
-void __attribute__((noinline)) triggerNullPointerIssue_level3()
+namespace
 {
-  int *p = nullptr;
-  *p = 42;                 // <-- crash here
+  void __attribute__((noinline)) triggerNullPointerIssue_level3()
+  {
+    int *p = nullptr;
+    *p = 42;               // <-- src/nullptr.cpp:9, crash here
+  }
+  // ... _level2() -> _level3(), _level1() -> _level2()
+}
+
+void __attribute__((noinline)) nullptr_issue::triggerNullPointerIssue()
+{
+  Serial.flush();
+  triggerNullPointerIssue_level1();
 }
 ```
 
-Call chain: `loopTask` → `setup()` → `triggerNullPointerIssue()` →
+Call chain: `loopTask` → `setup()` → `nullptr_issue::triggerNullPointerIssue()` →
 `_level1()` → `_level2()` → `_level3()`.
 
 ### 4.2 Serial Monitor log
-
-<!-- TODO: paste the full raw log here, from the boot header down to the reboot line -->
 
 ```
 Hello! I am useless program, that will crash. Pick a scenario via CRASH_SCENARIO to read that trace, and know something about debugging.
@@ -116,8 +136,8 @@ Scenario: null pointer write (StoreProhibited)
 Guru Meditation Error: Core  1 panic'ed (StoreProhibited). Exception was unhandled.
 
 Core  1 register dump:
-PC      : 0x420218bf  PS      : 0x00060830  A0      : 0x820016f2  A1      : 0x3fcebba0
-  #0  0x420218bf in triggerNullPointerIssue_level3() at src/main.cpp:13
+PC      : 0x420218c7  PS      : 0x00060830  A0      : 0x8200172e  A1      : 0x3fcebba0
+  #0  0x420218c7 in (anonymous namespace)::triggerNullPointerIssue_level3() at src/nullptr.cpp:9
 
 A2      : 0x3fc91558  A3      : 0x00000001  A4      : 0xffffffff  A5      : 0x0000ff00
   #0  0x3fc91558 in ?? at /Users/insomnia.exe/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:73
@@ -128,16 +148,16 @@ A14     : 0x3fcebf84  A15     : 0x00000000  SAR     : 0x0000001d  EXCCAUSE: 0x00
 EXCVADDR: 0x00000000  LBEG    : 0x400556d5  LEND    : 0x400556e5  LCOUNT  : 0xffffffff
 
 
-Backtrace: 0x420218bc:0x3fcebba0 0x420016ef:0x3fcebbc0 0x420016f7:0x3fcebbe0 0x42001705:0x3fcebc00 0x42001743:0x3fcebc20 0x42003456:0x3fcebc50
-  #0  0x420218bc in triggerNullPointerIssue_level3() at src/main.cpp:13
-  #1  0x420016ef in triggerNullPointerIssue_level2() at src/main.cpp:18
-  #2  0x420016f7 in triggerNullPointerIssue_level1() at src/main.cpp:23
-  #3  0x42001705 in triggerNullPointerIssue() at src/main.cpp:29
-  #4  0x42001743 in setup() at src/main.cpp:56
+Backtrace: 0x420218c4:0x3fcebba0 0x4200172b:0x3fcebbc0 0x42001733:0x3fcebbe0 0x42001741:0x3fcebc00 0x42001723:0x3fcebc20 0x42003456:0x3fcebc50
+  #0  0x420218c4 in (anonymous namespace)::triggerNullPointerIssue_level3() at src/nullptr.cpp:9
+  #1  0x4200172b in (anonymous namespace)::triggerNullPointerIssue_level2() at src/nullptr.cpp:14
+  #2  0x42001733 in (anonymous namespace)::triggerNullPointerIssue_level1() at src/nullptr.cpp:19
+  #3  0x42001741 in nullptr_issue::triggerNullPointerIssue() at src/nullptr.cpp:27
+  #4  0x42001723 in setup() at src/main.cpp:20
   #5  0x42003456 in loopTask(void*) at /Users/insomnia.exe/.platformio/packages/framework-arduinoespressif32/cores/esp32/main.cpp:42
 
 
-ELF file SHA256: 855530d5a10ead85
+ELF file SHA256: cba34904776c0af2
 
 Rebooting...
 ```
@@ -145,12 +165,12 @@ Rebooting...
 ### 4.3 Decoded backtrace
 
 ```
-Backtrace: 0x420218bc:0x3fcebba0 0x420016ef:0x3fcebbc0 0x420016f7:0x3fcebbe0 0x42001705:0x3fcebc00 0x42001743:0x3fcebc20 0x42003456:0x3fcebc50
-  #0  0x420218bc in triggerNullPointerIssue_level3() at src/main.cpp:13
-  #1  0x420016ef in triggerNullPointerIssue_level2() at src/main.cpp:18
-  #2  0x420016f7 in triggerNullPointerIssue_level1() at src/main.cpp:23
-  #3  0x42001705 in triggerNullPointerIssue() at src/main.cpp:29
-  #4  0x42001743 in setup() at src/main.cpp:56
+Backtrace: 0x420218c4:0x3fcebba0 0x4200172b:0x3fcebbc0 0x42001733:0x3fcebbe0 0x42001741:0x3fcebc00 0x42001723:0x3fcebc20 0x42003456:0x3fcebc50
+  #0  0x420218c4 in (anonymous namespace)::triggerNullPointerIssue_level3() at src/nullptr.cpp:9
+  #1  0x4200172b in (anonymous namespace)::triggerNullPointerIssue_level2() at src/nullptr.cpp:14
+  #2  0x42001733 in (anonymous namespace)::triggerNullPointerIssue_level1() at src/nullptr.cpp:19
+  #3  0x42001741 in nullptr_issue::triggerNullPointerIssue() at src/nullptr.cpp:27
+  #4  0x42001723 in setup() at src/main.cpp:20
   #5  0x42003456 in loopTask(void*) at /Users/insomnia.exe/.platformio/packages/framework-arduinoespressif32/cores/esp32/main.cpp:42
 ```
 
@@ -161,19 +181,19 @@ Backtrace: 0x420218bc:0x3fcebba0 0x420016ef:0x3fcebbc0 0x420016f7:0x3fcebbe0 0x4
 | Cause of the error            | `StoreProhibited`                |
 | `EXCCAUSE`                    | `0x0000001d`                     |
 | `EXCVADDR` (faulting address) | `0x00000000`                     |
-| File                          | `src/main.cpp`                   |
-| Line number                   | `13`                             |
-| Function                      | `triggerNullPointerIssue_level3` |
+| File                          | `src/nullptr.cpp`                |
+| Line number                   | `9`                              |
+| Function                      | `(anonymous namespace)::triggerNullPointerIssue_level3` |
 
 **Register interpretation**
 
 | Register   | Value      | Address (window mask applied) | Meaning                                                         |
 | ---------- | ---------- | ----------------------------- | --------------------------------------------------------------- |
-| `PC`       | 0x420218bf | —                             | Address of the instruction that faulted; maps to the crash line |
+| `PC`       | 0x420218c7 | —                             | Address of the instruction that faulted; maps to the crash line |
 | `EXCCAUSE` | 0x0000001d | —                             | Exception code — identifies the type of fault                   |
 | `EXCVADDR` | 0x00000000 | —                             | The memory address the code tried to access                     |
 | `A1`       | 0x3fcebba0 | —                             | Stack pointer; matches the first backtrace frame                |
-| `A0`       | 0x820016f2 | 0x420016f2                    | Return address — where execution would have continued           |
+| `A0`       | 0x8200172e | 0x4200172e                    | Return address — where execution would have continued           |
 | `A8`       | 0x00000000 | —                             | Destination pointer `p` (`nullptr`); matches `EXCVADDR`         |
 | `A9`       | 0x0000002a | —                             | Value being stored: 0x2a = 42                                   |
 
@@ -188,16 +208,24 @@ Backtrace: 0x420218bc:0x3fcebba0 0x420016ef:0x3fcebbc0 0x420016f7:0x3fcebbe0 0x4
 
 ### 5.1 Code
 
-```cpp
-volatile int divisor = 0;
-int divisionIteration = 0;
+[`src/zero_division.cpp`](src/zero_division.cpp) — state lives in an anonymous
+namespace, the trigger is exported through `zero_division`:
 
-void __attribute__((noinline)) triggerZeroDivisionIssue()
+```cpp
+namespace
+{
+  const int TRIGGER_DIVISION_BY_ZERO_AT = 10;
+  const int DIVISION_ITERATION_DELAY = 500;
+  volatile int divisor = 0;
+  int divisionIteration = 0;
+}
+
+void __attribute__((noinline)) zero_division::triggerZeroDivisionIssue()
 {
   if (divisionIteration >= TRIGGER_DIVISION_BY_ZERO_AT)
   {
     Serial.flush();
-    Serial.println(divisionIteration / divisor);   // <-- crash here
+    Serial.println(divisionIteration / divisor);   // <-- src/zero_division.cpp:18
   }
   delay(DIVISION_ITERATION_DELAY);
   divisionIteration++;
@@ -210,8 +238,11 @@ which shows that the panic is produced by running code rather than by a boot fai
 ### 5.2 Serial Monitor log
 
 ```
-PC      : 0x42001768  PS      : 0x00060830  A0      : 0x8200177a  A1      : 0x3fcebc10
-  #0  0x42001768 in triggerZeroDivisionIssue() at src/main.cpp:42
+Guru Meditation Error: Core  1 panic'ed (IntegerDivideByZero). Exception was unhandled.
+
+Core  1 register dump:
+PC      : 0x42001770  PS      : 0x00060830  A0      : 0x82001736  A1      : 0x3fcebc10
+  #0  0x42001770 in zero_division::triggerZeroDivisionIssue() at src/zero_division.cpp:18
 
 A2      : 0x3fc949c0  A3      : 0x00000038  A4      : 0x00000078  A5      : 0x0000e100
   #0  0x3fc949c0 in ?? at /Users/insomnia.exe/.platformio/packages/framework-arduinoespressif32/cores/esp32/HardwareSerial.cpp:39
@@ -224,13 +255,13 @@ A14     : 0x3fcf19e0  A15     : 0x00000000  SAR     : 0x0000001d  EXCCAUSE: 0x00
 EXCVADDR: 0x00000000  LBEG    : 0x400556d5  LEND    : 0x400556e5  LCOUNT  : 0xffffffff
 
 
-Backtrace: 0x42001765:0x3fcebc10 0x42001777:0x3fcebc30 0x42003549:0x3fcebc50
-  #0  0x42001765 in triggerZeroDivisionIssue() at src/main.cpp:42
-  #1  0x42001777 in loop() at src/main.cpp:67
+Backtrace: 0x4200176d:0x3fcebc10 0x42001733:0x3fcebc30 0x42003549:0x3fcebc50
+  #0  0x4200176d in zero_division::triggerZeroDivisionIssue() at src/zero_division.cpp:18
+  #1  0x42001733 in loop() at src/main.cpp:31
   #2  0x42003549 in loopTask(void*) at /Users/insomnia.exe/.platformio/packages/framework-arduinoespressif32/cores/esp32/main.cpp:50
 
 
-ELF file SHA256: 0204372a1bf2aa38
+ELF file SHA256: 8de75e44d8199328
 
 Rebooting...
 ```
@@ -238,21 +269,21 @@ Rebooting...
 ### 5.3 Decoded backtrace
 
 ```
-Backtrace: 0x42001765:0x3fcebc10 0x42001777:0x3fcebc30 0x42003549:0x3fcebc50
-  #0  0x42001765 in triggerZeroDivisionIssue() at src/main.cpp:42
-  #1  0x42001777 in loop() at src/main.cpp:67
+Backtrace: 0x4200176d:0x3fcebc10 0x42001733:0x3fcebc30 0x42003549:0x3fcebc50
+  #0  0x4200176d in zero_division::triggerZeroDivisionIssue() at src/zero_division.cpp:18
+  #1  0x42001733 in loop() at src/main.cpp:31
   #2  0x42003549 in loopTask(void*) at /Users/insomnia.exe/.platformio/packages/framework-arduinoespressif32/cores/esp32/main.cpp:50
 ```
 
 ### 5.4 Analysis
 
-| Question           | Answer                     |
-| ------------------ | -------------------------- |
-| Cause of the error | `IntegerDivideByZero`      |
-| `EXCCAUSE`         | `0x00000006`               |
-| File               | `src/main.cpp`             |
-| Line number        | `42`                       |
-| Function           | `triggerZeroDivisionIssue` |
+| Question           | Answer                                     |
+| ------------------ | ------------------------------------------ |
+| Cause of the error | `IntegerDivideByZero`                      |
+| `EXCCAUSE`         | `0x00000006`                               |
+| File               | `src/zero_division.cpp`                    |
+| Line number        | `18`                                       |
+| Function           | `zero_division::triggerZeroDivisionIssue`  |
 
 **Explanation**
 

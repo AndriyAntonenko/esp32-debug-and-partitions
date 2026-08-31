@@ -1,49 +1,13 @@
 #include <Arduino.h>
+#include "zero_division.h"
+#include "nullptr.h"
 
 // Set CRASH_SCENARIO to the scenario you want to reproduce, then rebuild.
 #define CRASH_NONE 0
 #define CRASH_NULL_POINTER 1
 #define CRASH_DIVIDE_BY_ZERO 2
 
-#define CRASH_SCENARIO CRASH_DIVIDE_BY_ZERO
-
-void __attribute__((noinline)) triggerNullPointerIssue_level3()
-{
-  int *p = nullptr;
-  *p = 42;
-}
-
-void __attribute__((noinline)) triggerNullPointerIssue_level2()
-{
-  triggerNullPointerIssue_level3();
-}
-
-void __attribute__((noinline)) triggerNullPointerIssue_level1()
-{
-  triggerNullPointerIssue_level2();
-}
-
-void __attribute__((noinline)) triggerNullPointerIssue()
-{
-  Serial.flush(); // <-- ensuring that serial is passed
-  triggerNullPointerIssue_level1();
-}
-
-const int TRIGGER_DIVISION_BY_ZERO_AT = 10;
-const int DIVISION_ITERATION_DELAY = 500;
-volatile int divisor = 0;
-int divisionIteration = 0;
-
-void __attribute__((noinline)) triggerZeroDivisionIssue()
-{
-  if (divisionIteration >= TRIGGER_DIVISION_BY_ZERO_AT)
-  {
-    Serial.flush(); // <-- ensuring that serial is passed
-    Serial.println(divisionIteration / divisor);
-  }
-  delay(DIVISION_ITERATION_DELAY);
-  divisionIteration++;
-}
+#define CRASH_SCENARIO CRASH_NULL_POINTER
 
 void setup()
 {
@@ -53,7 +17,7 @@ void setup()
 
 #if CRASH_SCENARIO == CRASH_NULL_POINTER
   Serial.println("Scenario: null pointer write (StoreProhibited)");
-  triggerNullPointerIssue();
+  nullptr_issue::triggerNullPointerIssue();
 #elif CRASH_SCENARIO == CRASH_DIVIDE_BY_ZERO
   Serial.println("Scenario: integer division by zero (IntegerDivideByZero)");
 #else
@@ -64,6 +28,6 @@ void setup()
 void loop()
 {
 #if CRASH_SCENARIO == CRASH_DIVIDE_BY_ZERO
-  triggerZeroDivisionIssue();
+  zero_division::triggerZeroDivisionIssue();
 #endif
 }
