@@ -299,7 +299,24 @@ Backtrace: 0x4200176d:0x3fcebc10 0x42001733:0x3fcebc30 0x42003549:0x3fcebc50
 
 ## 6. Bonus task — partition table
 
-> Not done yet. This section covers reading the partition table / dumping the binary
-> contents of a partition.
+### 6.1 Partition list (`esp_partition` API)
+
+Enumerated with `esp_partition_find()` / `esp_partition_get()`; the running partition is
+resolved with `esp_ota_get_running_partition()`.
+
+```
+[INFO]: Searching for partitions...
+Label            Type  SubType     Address           Size
+------------------------------------------------------------
+nvs              data  nvs         0x00009000     20 KB
+otadata          data  ota         0x0000e000      8 KB
+app0             app   ota_0       0x00010000   3264 KB  <-- running
+app1             app   ota_1       0x00340000   3264 KB
+spiffs           data  spiffs      0x00670000   1536 KB
+coredump         data  coredump    0x007f0000     64 KB
+------------------------------------------------------------
+```
+
+### 6.2 Raw partition table read (`esp_flash_read` at 0x8000)
 
 <!-- TODO -->
