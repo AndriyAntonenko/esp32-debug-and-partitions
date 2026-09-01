@@ -319,4 +319,21 @@ coredump         data  coredump    0x007f0000     64 KB
 
 ### 6.2 Raw partition table read (`esp_flash_read` at 0x8000)
 
-<!-- TODO -->
+Read straight from flash with `esp_flash_read()`, one 32-byte slot at a time, parsed by hand
+into `RawPartitionEntry` (magic, type, subtype, offset, size, label, flags). Parsing stops at
+the MD5 entry (magic `0xEBEB`).
+
+```
+Label            Type  SubType     Address           Size
+------------------------------------------------------------
+nvs              data  nvs         0x00009000     20 KB
+otadata          data  ota         0x0000e000      8 KB
+app0             app   ota_0       0x00010000   3264 KB
+app1             app   ota_1       0x00340000   3264 KB
+spiffs           data  spiffs      0x00670000   1536 KB
+coredump         data  coredump    0x007f0000     64 KB
+------------------------------------------------------------
+```
+
+The output is identical to 6.1 except for the `<-- running` marker: that information does not
+exist in the raw bytes, it comes from `esp_ota_get_running_partition()`.

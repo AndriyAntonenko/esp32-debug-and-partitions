@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "zero_division.h"
 #include "nullptr.h"
+#include "partitions.h"
 #include "esp_partition.h"
 #include <esp_ota_ops.h>
 
@@ -19,7 +20,8 @@ void setup()
   delay(2000);
   Serial.println("Hello! I am useless program, that will crash. Pick a scenario via CRASH_SCENARIO to read that trace, and know something about debugging.");
 
-  printCurrentPartitionTable();
+  partitions::readPartitionsTableHighLevel();
+  partitions::readPartitionsTableLowLevel();
 
 #if CRASH_SCENARIO == CRASH_NULL_POINTER
   Serial.println("Scenario: null pointer write (StoreProhibited)");
